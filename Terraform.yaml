@@ -1,0 +1,149 @@
+terraform {
+    required_providers {
+        aws = {
+            source = "hashicorp/aws"
+            version = "~> 3.0"
+        }
+    }
+}
+
+provider "aws" {
+    region = "us-east-1"
+}
+
+resource "aws_instance" "EC2Instance" {
+    ami = "ami-051f7e7f6c2f40dc1"
+    instance_type = "t2.micro"
+    availability_zone = "us-east-1a"
+    tenancy = "default"
+    subnet_id = "subnet-025017dec64b73269"
+    ebs_optimized = false
+    vpc_security_group_ids = [
+        "sg-0db13df637df34e82",
+        "${aws_security_group.EC2SecurityGroup.id}"
+    ]
+    source_dest_check = true
+    root_block_device {
+        volume_size = 8
+        volume_type = "gp3"
+        delete_on_termination = true
+    }
+    user_data = "IyEvYmluL2Jhc2gKIyBVc2UgdGhpcyBmb3IgeW91ciB1c2VyIGRhdGEgKHNjcmlwdCBmcm9tIHRvcCB0byBib3R0b20pCiMgaW5zdGFsbCBodHRwZCAoTGludXggMiB2ZXJzaW9uKQp5dW0gdXBkYXRlIC15Cnl1bSBpbnN0YWxsIC15IGh0dHBkCnN5c3RlbWN0bCBzdGFydCBodHRwZApzeXN0ZW1jdGwgZW5hYmxlIGh0dHBkCmVjaG8gIjxoMT5IZWxsbyBXb3JsZCBmcm9tICQoaG9zdG5hbWUgLWYpPC9oMT4iID4gL3Zhci93d3cvaHRtbC9pbmRleC5odG1s"
+    tags = {
+        Name = "ALB instance1"
+    }
+}
+
+resource "aws_instance" "EC2Instance2" {
+    ami = "ami-051f7e7f6c2f40dc1"
+    instance_type = "t2.micro"
+    availability_zone = "us-east-1a"
+    tenancy = "default"
+    subnet_id = "subnet-025017dec64b73269"
+    ebs_optimized = false
+    vpc_security_group_ids = [
+        "sg-0db13df637df34e82",
+        "${aws_security_group.EC2SecurityGroup.id}"
+    ]
+    source_dest_check = true
+    root_block_device {
+        volume_size = 8
+        volume_type = "gp3"
+        delete_on_termination = true
+    }
+    user_data = "IyEvYmluL2Jhc2gKIyBVc2UgdGhpcyBmb3IgeW91ciB1c2VyIGRhdGEgKHNjcmlwdCBmcm9tIHRvcCB0byBib3R0b20pCiMgaW5zdGFsbCBodHRwZCAoTGludXggMiB2ZXJzaW9uKQp5dW0gdXBkYXRlIC15Cnl1bSBpbnN0YWxsIC15IGh0dHBkCnN5c3RlbWN0bCBzdGFydCBodHRwZApzeXN0ZW1jdGwgZW5hYmxlIGh0dHBkCmVjaG8gIjxoMT5IZWxsbyBXb3JsZCBmcm9tICQoaG9zdG5hbWUgLWYpPC9oMT4iID4gL3Zhci93d3cvaHRtbC9pbmRleC5odG1s"
+    tags = {
+        Name = "ALB instance2"
+    }
+}
+
+resource "aws_lb" "ElasticLoadBalancingV2LoadBalancer" {
+    name = "my-ALB"
+    internal = false
+    load_balancer_type = "application"
+    subnets = [
+        "subnet-025017dec64b73269",
+        "subnet-0af0bef262acc130a",
+        "subnet-0caaccec40b0f1816",
+        "subnet-0cd03a5ea0aeea287",
+        "subnet-0d7159c127f4305d2",
+        "subnet-0ed23afebe527a418"
+    ]
+    security_groups = [
+        "${aws_security_group.EC2SecurityGroup.id}",
+        "sg-032e562d1887de7b7"
+    ]
+    ip_address_type = "ipv4"
+    access_logs {
+        enabled = false
+        bucket = ""
+        prefix = ""
+    }
+    idle_timeout = "60"
+    enable_deletion_protection = "false"
+    enable_http2 = "true"
+    enable_cross_zone_load_balancing = "true"
+}
+
+resource "aws_lb_listener" "ElasticLoadBalancingV2Listener" {
+    load_balancer_arn = "arn:aws:elasticloadbalancing:us-east-1:158317763821:loadbalancer/app/my-ALB/34fc7b9182fbe917"
+    port = 80
+    protocol = "HTTP"
+    default_action {
+        target_group_arn = "arn:aws:elasticloadbalancing:us-east-1:158317763821:targetgroup/my-ALB-demo-tg/9b36286f60d80f74"
+        type = "forward"
+    }
+}
+
+resource "aws_security_group" "EC2SecurityGroup" {
+    description = "Allows HTTP from everywhere"
+    name = "ALB-demo-sg"
+    tags = {}
+    vpc_id = "vpc-0447828ba84bda6b1"
+    ingress {
+        cidr_blocks = [
+            "0.0.0.0/0"
+        ]
+        from_port = 80
+        protocol = "tcp"
+        to_port = 80
+    }
+    egress {
+        cidr_blocks = [
+            "0.0.0.0/0"
+        ]
+        from_port = 0
+        protocol = "-1"
+        to_port = 0
+    }
+}
+
+resource "aws_lb_target_group" "ElasticLoadBalancingV2TargetGroup" {
+    health_check {
+        interval = 30
+        path = "/"
+        port = "traffic-port"
+        protocol = "HTTP"
+        timeout = 5
+        unhealthy_threshold = 2
+        healthy_threshold = 5
+        matcher = "200"
+    }
+    port = 80
+    protocol = "HTTP"
+    target_type = "instance"
+    vpc_id = "vpc-0447828ba84bda6b1"
+    name = "my-ALB-demo-tg"
+}
+
+resource "aws_network_interface_attachment" "EC2NetworkInterfaceAttachment" {
+    network_interface_id = "eni-0aef09423248c60a7"
+    device_index = 0
+    instance_id = "i-005aaa99dee967d4f"
+}
+
+resource "aws_network_interface_attachment" "EC2NetworkInterfaceAttachment2" {
+    network_interface_id = "eni-0a672747065129ec3"
+    device_index = 0
+    instance_id = "i-05f1c0d5a530227e3"
+}
